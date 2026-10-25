@@ -470,14 +470,69 @@
     </div>
 
     <div class="panel">
-      <h3>🗑️ 8. Reset Data Siswa</h3>
+      <h3>📊 8. Integrasi Google Spreadsheet (Kirim Nilai Otomatis)</h3>
+      <p style="font-size:13px; margin:0 0 10px 0; color:var(--text-secondary);">Masukkan URL Web App dari Google Apps Script untuk menerima hasil ujian siswa secara otomatis ke Google Spreadsheet.</p>
+      <div class="form-group">
+        <label>URL Google Apps Script Web App:</label>
+        <input type="text" id="inputGoogleSheet" class="input-judul" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="panel-row">
+        <button class="btn btn-success" onclick="simpanGoogleSheet()" style="padding:8px 15px; font-size:13px;">💾 Simpan URL</button>
+        <button class="btn btn-warning" onclick="tesKirimGoogleSheet()" style="padding:8px 15px; font-size:13px;">🧪 Tes Kirim Data</button>
+        <button class="btn btn-secondary" onclick="resetGoogleSheet()" style="padding:8px 15px; font-size:13px;">🔄 Kosongkan</button>
+      </div>
+      <div id="statusGoogleSheet"></div>
+      <div class="alert-info" style="margin-top:10px;">
+        💡 <strong>Panduan Pembuatan Google Apps Script:</strong>
+        <ol class="step-list">
+          <li>Buat Google Spreadsheet baru di Google Drive Anda.</li>
+          <li>Klik menu <strong>Ekstensi &gt; Apps Script</strong>.</li>
+          <li>Hapus kode lama dan tempel kode berikut:
+            <div style="margin-top:5px;">
+              <button class="btn btn-secondary" onclick="salinKodeGas()" style="padding:4px 10px; font-size:12px; margin-bottom:5px;">📋 Salin Kode Apps Script</button>
+<pre id="kodeGasText" style="background:var(--bg-primary); padding:10px; border-radius:4px; overflow-x:auto; font-size:11px; border:1px solid var(--border-color); color:var(--text-primary); -webkit-user-select:text; user-select:text;">function doPost(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = JSON.parse(e.postData.contents);
+    if (sheet.getLastRow() == 0) {
+      sheet.appendRow(["Timestamp", "Nama", "Nomor Absen", "Kelas", "Nilai", "Benar", "Total Soal", "Pelanggaran", "Auto Submit", "Waktu Selesai"]);
+    }
+    sheet.appendRow([
+      data.waktuSelesai || new Date(),
+      data.nama || "",
+      data.nomor || "",
+      data.kelas || "",
+      data.nilai || 0,
+      data.benar || 0,
+      data.totalSoal || 0,
+      data.pelanggaran || 0,
+      data.autoSubmit ? "Ya" : "Tidak",
+      data.waktuSelesai || ""
+    ]);
+    return ContentService.createTextOutput(JSON.stringify({result: "success"})).setMimeType(ContentService.MimeType.JSON);
+  } catch(error) {
+    return ContentService.createTextOutput(JSON.stringify({result: "error", error: error.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}</pre>
+            </div>
+          </li>
+          <li>Klik <strong>Terapkan (Deploy) &gt; Penerapan baru (New deployment)</strong>.</li>
+          <li>Pilih jenis: <strong>Aplikasi web (Web app)</strong>.</li>
+          <li>Setel <em>"Siapa yang memiliki akses" (Who has access)</em> ke: <strong>Siapa saja (Anyone)</strong>.</li>
+          <li>Klik <strong>Terapkan (Deploy)</strong>, berikan izin akses, lalu salin <strong>URL Aplikasi Web (Web App URL)</strong> dan tempel di atas.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🗑️ 9. Reset Data Siswa</h3>
       <p style="font-size:13px; margin:0 0 10px 0; color:var(--text-secondary);">Hapus semua data siswa yang sedang/sudah ujian. Pengaturan guru TIDAK terhapus.</p>
       <button class="btn btn-danger" onclick="resetDataSiswa()" style="padding:8px 15px; font-size:13px;">🗑️ Reset Data Siswa</button>
       <div id="statusResetSiswa"></div>
     </div>
 
     <div class="panel panel-highlight">
-      <h3>💾 9. Simpan Permanen ke File HTML</h3>
+      <h3>💾 10. Simpan Permanen ke File HTML</h3>
       <p style="font-size:13px; margin:0 0 10px 0; color:#065f46;"><strong>Simpan semua perubahan</strong> ke dalam file HTML. File baru akan terdownload dan bisa dibagikan ke siswa.</p>
       <div class="alert-info">
         <strong>📋 Langkah-langkah:</strong>
@@ -541,6 +596,7 @@ const JUDUL_DEFAULT = "Evaluasi PKK DKV BAB 1";
 const SUBJUDUL_DEFAULT = "Kewirausahaan Produk Teknik Komputer dan Informatika";
 const PASSWORD_DEFAULT = "guru123";
 const TOKEN_DEFAULT = "DKV2024";
+const GOOGLE_SHEET_URL_DEFAULT = "";
 const SOAL_DEFAULT = [
   {q:"Seorang wirausahawan komputer dan informatika didefinisikan sebagai seseorang yang memiliki usaha sendiri dalam bidang barang atau jasa, khususnya di dunia...", o:["Multimedia","Pertanian","Pertambangan","Perbankan","Kesehatan"], a:0},
   {q:"Faktor yang memengaruhi semangat kerja seorang wirausahawan, di mana terbukanya sebuah kesempatan dapat meningkatkan kinerjanya, disebut...", o:["Minat","Peluang","Relasi","Modal","Ambisi"], a:1},
@@ -574,13 +630,14 @@ const UKURAN_KERTAS = {
 
 const savedVersion = localStorage.getItem('htmlVersion');
 if (savedVersion !== HTML_VERSION) {
-  ['configJudul','configSubJudul','configPassword','configToken','configDurasi','configJumlahSoal','configAcak','configAcakOpsi','configMaxPelanggaran','soalAktif'].forEach(k => localStorage.removeItem(k));
+  ['configJudul','configSubJudul','configPassword','configToken','configGoogleSheetUrl','configDurasi','configJumlahSoal','configAcak','configAcakOpsi','configMaxPelanggaran','soalAktif'].forEach(k => localStorage.removeItem(k));
   localStorage.setItem('htmlVersion', HTML_VERSION);
 }
 
 let configJudul = localStorage.getItem('configJudul') || JUDUL_DEFAULT;
 let configSubJudul = localStorage.getItem('configSubJudul') || SUBJUDUL_DEFAULT;
 let configToken = localStorage.getItem('configToken') || TOKEN_DEFAULT;
+let configGoogleSheetUrl = localStorage.getItem('configGoogleSheetUrl') || GOOGLE_SHEET_URL_DEFAULT;
 let PASSWORD_GURU = localStorage.getItem('configPassword') || PASSWORD_DEFAULT;
 let soalAktif = JSON.parse(localStorage.getItem('soalAktif') || 'null') || SOAL_DEFAULT;
 
@@ -621,6 +678,7 @@ function loadDashboardData() {
   document.getElementById('inputJudul').value = configJudul;
   document.getElementById('inputSubJudul').value = configSubJudul;
   document.getElementById('inputToken').value = configToken;
+  document.getElementById('inputGoogleSheet').value = configGoogleSheetUrl;
   document.getElementById('previewJudulUtama').innerText = configJudul;
   document.getElementById('previewSubJudul').innerText = configSubJudul;
   document.getElementById('previewToken').innerText = configToken;
@@ -635,6 +693,65 @@ function loadDashboardData() {
   document.getElementById('jumlahSoalSaatIni').innerText = soalAktif.length;
   document.getElementById('versionBadge').innerText = 'v' + HTML_VERSION;
   document.getElementById('currentVersionDisplay').innerText = 'v' + HTML_VERSION;
+}
+
+function salinKodeGas() {
+  const codeElem = document.getElementById('kodeGasText');
+  if (!codeElem) return;
+  const codeText = codeElem.innerText;
+  navigator.clipboard.writeText(codeText).then(() => {
+    alert('✅ Kode Apps Script berhasil disalin ke clipboard!');
+  }).catch(err => {
+    const textarea = document.createElement('textarea');
+    textarea.value = codeText;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('✅ Kode Apps Script berhasil disalin!');
+  });
+}
+
+function simpanGoogleSheet() {
+  const url = document.getElementById('inputGoogleSheet').value.trim();
+  configGoogleSheetUrl = url;
+  localStorage.setItem('configGoogleSheetUrl', configGoogleSheetUrl);
+  document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-success">✅ URL Google Apps Script berhasil disimpan!</div>';
+}
+
+function resetGoogleSheet() {
+  if (!confirm('Kosongkan URL Google Apps Script?')) return;
+  configGoogleSheetUrl = '';
+  localStorage.setItem('configGoogleSheetUrl', '');
+  document.getElementById('inputGoogleSheet').value = '';
+  document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-info">ℹ️ URL Google Apps Script dikosongkan.</div>';
+}
+
+function tesKirimGoogleSheet() {
+  const url = document.getElementById('inputGoogleSheet').value.trim();
+  if (!url) {
+    document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-error">❌ Masukkan URL Google Apps Script terlebih dahulu!</div>';
+    return;
+  }
+  document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-info">⏳ Mengirim data uji coba ke Google Spreadsheet...</div>';
+  const testPayload = {
+    nama: "Uji Coba Sistem",
+    nomor: "00",
+    kelas: "GURU-TEST",
+    nilai: 100,
+    benar: 10,
+    totalSoal: 10,
+    pelanggaran: 0,
+    autoSubmit: false,
+    waktuSelesai: new Date().toLocaleString('id-ID')
+  };
+  kirimKeGoogleSheet(testPayload, url).then(success => {
+    if (success) {
+      document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-success">✅ Tes pengiriman berhasil terkirim! Silakan periksa Google Spreadsheet Anda.</div>';
+    } else {
+      document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-error">❌ Gagal mengirim tes data. Pastikan URL benar dan skrip diset ke "Siapa saja" (Anyone).</div>';
+    }
+  });
 }
 
 function simpanJudul() {
@@ -969,7 +1086,7 @@ function simpanPermanenKeHTML() {
     let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
     document.getElementById('menuAwal').style.display = savedState.menuAwal; document.getElementById('identityForm').style.display = savedState.identityForm; document.getElementById('dashboardGuru').style.display = savedState.dashboardGuru; document.getElementById('quizArea').style.display = savedState.quizArea; document.getElementById('resultArea').style.display = savedState.resultArea; document.getElementById('loginModal').style.display = savedState.loginModal; document.getElementById('resetModal').style.display = savedState.resetModal; document.getElementById('violationOverlay').style.display = savedState.violationOverlay;
     const newVersion = incrementVersion(HTML_VERSION);
-    const newConfigBlock = '// __CONFIG_START__\nconst JUDUL_DEFAULT = ' + JSON.stringify(configJudul) + ';\nconst SUBJUDUL_DEFAULT = ' + JSON.stringify(configSubJudul) + ';\nconst PASSWORD_DEFAULT = ' + JSON.stringify(PASSWORD_GURU) + ';\nconst TOKEN_DEFAULT = ' + JSON.stringify(configToken) + ';\nconst SOAL_DEFAULT = ' + JSON.stringify(soalAktif) + ';\n// __CONFIG_END__';
+    const newConfigBlock = '// __CONFIG_START__\nconst JUDUL_DEFAULT = ' + JSON.stringify(configJudul) + ';\nconst SUBJUDUL_DEFAULT = ' + JSON.stringify(configSubJudul) + ';\nconst PASSWORD_DEFAULT = ' + JSON.stringify(PASSWORD_GURU) + ';\nconst TOKEN_DEFAULT = ' + JSON.stringify(configToken) + ';\nconst GOOGLE_SHEET_URL_DEFAULT = ' + JSON.stringify(configGoogleSheetUrl) + ';\nconst SOAL_DEFAULT = ' + JSON.stringify(soalAktif) + ';\n// __CONFIG_END__';
     const newRuntimeConfigBlock = '// __RUNTIME_CONFIG_START__\nlet configDurasi = parseInt(localStorage.getItem(\'configDurasi\') || \'' + configDurasi + '\');\nlet configJumlahSoal = parseInt(localStorage.getItem(\'configJumlahSoal\') || \'' + configJumlahSoal + '\');\nlet configAcak = localStorage.getItem(\'configAcak\') === \'' + configAcak + '\';\nlet configAcakOpsi = localStorage.getItem(\'configAcakOpsi\') === \'' + configAcakOpsi + '\';\nlet configMaxPelanggaran = parseInt(localStorage.getItem(\'configMaxPelanggaran\') || \'' + configMaxPelanggaran + '\');\n// __RUNTIME_CONFIG_END__';
     html = html.replace(/\/\/ __CONFIG_START__[\s\S]*?\/\/ __CONFIG_END__/, newConfigBlock);
     html = html.replace(/\/\/ __RUNTIME_CONFIG_START__[\s\S]*?\/\/ __RUNTIME_CONFIG_END__/, newRuntimeConfigBlock);
@@ -984,22 +1101,24 @@ function enterFullscreen() { const elem = document.documentElement; if (elem.req
 function exitFullscreen() { if (document.exitFullscreen) document.exitFullscreen().catch(()=>{}); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
 document.addEventListener('fullscreenchange', handleFullscreenChange); document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 function handleFullscreenChange() { const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement); if (!isFullscreen && isFullscreenActive && statusUjian === 'berlangsung') { catatPelanggaran('Keluar dari mode fullscreen'); tampilkanOverlayPelanggaran('Anda keluar dari mode fullscreen!'); setTimeout(() => { if (statusUjian === 'berlangsung') enterFullscreen(); }, 3500); } }
-document.addEventListener('copy', e => { e.preventDefault(); catatPelanggaran('Percobaan copy teks'); });
-document.addEventListener('cut', e => { e.preventDefault(); catatPelanggaran('Percobaan cut teks'); });
-document.addEventListener('paste', e => { e.preventDefault(); });
+document.addEventListener('copy', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); catatPelanggaran('Percobaan copy teks'); } });
+document.addEventListener('cut', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); catatPelanggaran('Percobaan cut teks'); } });
+document.addEventListener('paste', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); } });
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && ['c','C','x','X','a','A','p','P','s','S','u','U'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
-  if (e.key === 'F12') { e.preventDefault(); catatPelanggaran('Tombol F12 (DevTools)'); return false; }
-  if (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) { e.preventDefault(); catatPelanggaran('DevTools shortcut'); return false; }
-  if (e.key === 'PrintScreen' || e.key === 'Print') { e.preventDefault(); catatPelanggaran('Tombol PrintScreen'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); navigator.clipboard.writeText('').catch(()=>{}); return false; }
-  if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); catatPelanggaran('Windows+Shift+S'); tampilkanOverlayPelanggaran('Snipping Tool terdeteksi!'); return false; }
-  if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) { e.preventDefault(); catatPelanggaran('Screenshot Mac'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); return false; }
-  if (e.shiftKey && e.key === 'F10') { e.preventDefault(); catatPelanggaran('Shift+F10 (Context Menu)'); return false; }
-  if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); catatPelanggaran('Console shortcut'); return false; }
-  if (e.key === 'F1') { e.preventDefault(); return false; }
-  if (statusUjian === 'berlangsung' && (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R')))) { e.preventDefault(); catatPelanggaran('Mencoba refresh halaman'); return false; }
-  if (e.ctrlKey && ['n','N','t','T','w','W'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
-  if (e.key === 'Meta' || e.key === 'OS' || e.key === 'Super' || e.key === 'Win' || e.key === 'ContextMenu') { e.preventDefault(); return false; }
+  if (statusUjian === 'berlangsung') {
+    if (e.ctrlKey && ['c','C','x','X','a','A','p','P','s','S','u','U'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
+    if (e.key === 'F12') { e.preventDefault(); catatPelanggaran('Tombol F12 (DevTools)'); return false; }
+    if (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) { e.preventDefault(); catatPelanggaran('DevTools shortcut'); return false; }
+    if (e.key === 'PrintScreen' || e.key === 'Print') { e.preventDefault(); catatPelanggaran('Tombol PrintScreen'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); navigator.clipboard.writeText('').catch(()=>{}); return false; }
+    if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); catatPelanggaran('Windows+Shift+S'); tampilkanOverlayPelanggaran('Snipping Tool terdeteksi!'); return false; }
+    if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) { e.preventDefault(); catatPelanggaran('Screenshot Mac'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); return false; }
+    if (e.shiftKey && e.key === 'F10') { e.preventDefault(); catatPelanggaran('Shift+F10 (Context Menu)'); return false; }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); catatPelanggaran('Console shortcut'); return false; }
+    if (e.key === 'F1') { e.preventDefault(); return false; }
+    if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) { e.preventDefault(); catatPelanggaran('Mencoba refresh halaman'); return false; }
+    if (e.ctrlKey && ['n','N','t','T','w','W'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
+    if (e.key === 'Meta' || e.key === 'OS' || e.key === 'Super' || e.key === 'Win' || e.key === 'ContextMenu') { e.preventDefault(); return false; }
+  }
 });
 window.addEventListener('blur', () => { if (statusUjian === 'berlangsung') { catatPelanggaran('Window kehilangan fokus'); tampilkanOverlayPelanggaran('Window kehilangan fokus!'); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && statusUjian === 'berlangsung') { catatPelanggaran('Pindah tab / minimize'); tampilkanOverlayPelanggaran('Pindah tab terdeteksi!'); } });
@@ -1118,13 +1237,54 @@ function mulaiTimer() {
 function kumpulkan() { const elapsed = Math.floor((Date.now() - waktuMulai) / 1000); if (elapsed < durasi) { alert('Anda belum dapat mengumpulkan sebelum waktu habis!\n\nSisa waktu: ' + Math.ceil((durasi - elapsed)/60) + ' menit lagi.'); return; } submitUjian(false); }
 function autoSubmit() { submitUjian(true); }
 
+async function kirimKeGoogleSheet(payload, customUrl) {
+  const targetUrl = customUrl || configGoogleSheetUrl;
+  if (!targetUrl) return false;
+  try {
+    await fetch(targetUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return true;
+  } catch (err) {
+    console.error('Gagal mengirim ke Google Sheet:', err);
+    return false;
+  }
+}
+
 function submitUjian(isAutoSubmit) {
   clearInterval(timerInterval); let benar = 0;
   soalUrutan.forEach(soalIdx => { if (jawaban[soalIdx] == soalAktif[soalIdx].a) benar++; });
   const nilai = Math.round((benar / soalUrutan.length) * 100);
+  const waktuSelesaiStr = new Date().toLocaleString('id-ID');
   statusUjian = 'selesai'; localStorage.setItem('statusUjian', statusUjian); localStorage.setItem('nilai', nilai); localStorage.setItem('benar', benar);
-  localStorage.setItem('autoSubmit', isAutoSubmit); localStorage.setItem('waktuSelesai', new Date().toLocaleString('id-ID'));
-  isFullscreenActive = false; exitFullscreen(); hapusWatermark(); tampilkanHasil(nilai, benar, isAutoSubmit);
+  localStorage.setItem('autoSubmit', isAutoSubmit); localStorage.setItem('waktuSelesai', waktuSelesaiStr);
+  isFullscreenActive = false; exitFullscreen(); hapusWatermark();
+  tampilkanHasil(nilai, benar, isAutoSubmit);
+
+  if (configGoogleSheetUrl && dataSiswa) {
+    const sheetStatusElem = document.getElementById('sheetSendingStatus');
+    if (sheetStatusElem) sheetStatusElem.innerHTML = '<div class="alert-info">⏳ Mengirim hasil nilai ke Google Spreadsheet...</div>';
+    const payload = {
+      nama: dataSiswa.nama,
+      nomor: dataSiswa.nomor,
+      kelas: dataSiswa.kelas,
+      nilai: nilai,
+      benar: benar,
+      totalSoal: soalUrutan.length,
+      pelanggaran: jumlahPelanggaran,
+      autoSubmit: isAutoSubmit,
+      waktuSelesai: waktuSelesaiStr
+    };
+    kirimKeGoogleSheet(payload).then(success => {
+      if (sheetStatusElem) {
+        if (success) sheetStatusElem.innerHTML = '<div class="alert-success">✅ Hasil nilai berhasil terkirim ke Google Spreadsheet.</div>';
+        else sheetStatusElem.innerHTML = '<div class="alert-error">⚠️ Gagal mengirim hasil nilai ke Google Spreadsheet.</div>';
+      }
+    });
+  }
 }
 
 function tampilkanHasil(nilai, benar, isAutoSubmit) {
@@ -1134,7 +1294,7 @@ function tampilkanHasil(nilai, benar, isAutoSubmit) {
   let violationListHtml = '';
   if (pelanggaran.length > 0) violationListHtml = '<div class="violation-list"><h3>📋 Riwayat Pelanggaran:</h3><ul>' + pelanggaran.map(p => '<li><strong>Ke-' + p.no + '</strong> (' + p.waktu + '): ' + p.jenis + '</li>').join('') + '</ul></div>';
   const forensik = hitungForensik(), forensikHtml = renderForensik(forensik), waktuSelesai = localStorage.getItem('waktuSelesai') || '-';
-  document.getElementById('resultArea').innerHTML = '<div class="' + resultClass + '"><h2>' + titleText + '</h2><p><strong>Nama:</strong> ' + dataSiswa.nama + '</p><p><strong>Nomor:</strong> ' + dataSiswa.nomor + '</p><p><strong>Kelas:</strong> ' + dataSiswa.kelas + '</p><p style="font-size:12px; color:var(--text-secondary);">Selesai: ' + waktuSelesai + '</p><div class="score">' + nilai + '</div><p>Benar: <strong>' + benar + '</strong> / ' + soalUrutan.length + '</p><p style="margin-top:12px; font-size:16px;"><strong>⚠️ Pelanggaran: <span style="color:#dc2626; font-size:20px;">' + jumlahPelanggaran + '</span> / ' + maxPelanggaranUjian + '</strong></p>' + (isAutoSubmit ? '<p style="color:#991b1b; font-weight:bold; margin-top:8px;">Dikumpulkan otomatis (' + maxPelanggaranUjian + ' pelanggaran)</p>' : '') + violationListHtml + forensikHtml + '<div class="locked-box"> <strong>Ujian dikunci.</strong> Hubungi guru untuk reset.</div><button class="btn-reset" style="float:none; margin-top:15px; padding:10px 20px; font-size:14px;" onclick="bukaModalReset()">🔐 Reset (Guru)</button></div>';
+  document.getElementById('resultArea').innerHTML = '<div class="' + resultClass + '"><h2>' + titleText + '</h2><p><strong>Nama:</strong> ' + dataSiswa.nama + '</p><p><strong>Nomor:</strong> ' + dataSiswa.nomor + '</p><p><strong>Kelas:</strong> ' + dataSiswa.kelas + '</p><p style="font-size:12px; color:var(--text-secondary);">Selesai: ' + waktuSelesai + '</p><div class="score">' + nilai + '</div><p>Benar: <strong>' + benar + '</strong> / ' + soalUrutan.length + '</p><p style="margin-top:12px; font-size:16px;"><strong>⚠️ Pelanggaran: <span style="color:#dc2626; font-size:20px;">' + jumlahPelanggaran + '</span> / ' + maxPelanggaranUjian + '</strong></p>' + (isAutoSubmit ? '<p style="color:#991b1b; font-weight:bold; margin-top:8px;">Dikumpulkan otomatis (' + maxPelanggaranUjian + ' pelanggaran)</p>' : '') + '<div id="sheetSendingStatus"></div>' + violationListHtml + forensikHtml + '<div class="locked-box"> <strong>Ujian dikunci.</strong> Hubungi guru untuk reset.</div><button class="btn-reset" style="float:none; margin-top:15px; padding:10px 20px; font-size:14px;" onclick="bukaModalReset()">🔐 Reset (Guru)</button></div>';
 }
 
 function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
