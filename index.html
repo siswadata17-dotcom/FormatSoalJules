@@ -558,8 +558,8 @@ const SOAL_DEFAULT = [
 // __RUNTIME_CONFIG_START__
 let configDurasi = parseInt(localStorage.getItem('configDurasi') || '30');
 let configJumlahSoal = parseInt(localStorage.getItem('configJumlahSoal') || '0');
-let configAcak = localStorage.getItem('configAcak') === 'true';
-let configAcakOpsi = localStorage.getItem('configAcakOpsi') === 'true';
+let configAcak = (localStorage.getItem('configAcak') || 'false') === 'true';
+let configAcakOpsi = (localStorage.getItem('configAcakOpsi') || 'false') === 'true';
 let configMaxPelanggaran = parseInt(localStorage.getItem('configMaxPelanggaran') || '5');
 // __RUNTIME_CONFIG_END__
 
@@ -599,7 +599,7 @@ function toggleDarkMode() {
   const isDark = document.body.classList.contains('dark-mode');
   localStorage.setItem('darkMode', isDark);
   document.querySelector('.dark-mode-toggle').innerText = isDark ? '☀️' : '🌙';
-  if (statusUjian === 'berlangsung' && dataSiswa) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas);
+  if (statusUjian === 'berlangsung' && dataSiswa && dataSiswa.nama) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas);
 }
 
 function updateJudulDiSemuaTempat() {
@@ -736,6 +736,7 @@ function importExcel(event) {
     } catch (err) { document.getElementById('statusImport').innerHTML = '<div class="alert-error">❌ Error: ' + err.message + '</div>'; }
   };
   reader.readAsArrayBuffer(file);
+  event.target.value = '';
 }
 
 function tampilkanPreview(soal) {
@@ -896,8 +897,9 @@ function exportToWord() {
     return result;
   }
 
+  const fontName = (setting.font || 'Times New Roman').split(',')[0].replace(/['"]/g, '').trim() || 'Times New Roman';
   let rtf = '{\\rtf1\\utf8\\deff0\n';
-  rtf += '{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\n';
+  rtf += '{\\fonttbl{\\f0\\fnil\\fcharset0 ' + fontName + ';}}\n';
   rtf += '{\\colortbl;\\red0\\green0\\blue0;}\n';
   rtf += '\\paperw11906\\paperh16838\\margl1440\\margr1440\\margt1440\\margb1440\n';
   const fontSizeTwips = parseInt(setting.ukuranFont) * 2, titleSizeTwips = (parseInt(setting.ukuranFont) + 4) * 2;
@@ -970,7 +972,7 @@ function simpanPermanenKeHTML() {
     document.getElementById('menuAwal').style.display = savedState.menuAwal; document.getElementById('identityForm').style.display = savedState.identityForm; document.getElementById('dashboardGuru').style.display = savedState.dashboardGuru; document.getElementById('quizArea').style.display = savedState.quizArea; document.getElementById('resultArea').style.display = savedState.resultArea; document.getElementById('loginModal').style.display = savedState.loginModal; document.getElementById('resetModal').style.display = savedState.resetModal; document.getElementById('violationOverlay').style.display = savedState.violationOverlay;
     const newVersion = incrementVersion(HTML_VERSION);
     const newConfigBlock = '// __CONFIG_START__\nconst JUDUL_DEFAULT = ' + JSON.stringify(configJudul) + ';\nconst SUBJUDUL_DEFAULT = ' + JSON.stringify(configSubJudul) + ';\nconst PASSWORD_DEFAULT = ' + JSON.stringify(PASSWORD_GURU) + ';\nconst TOKEN_DEFAULT = ' + JSON.stringify(configToken) + ';\nconst SOAL_DEFAULT = ' + JSON.stringify(soalAktif) + ';\n// __CONFIG_END__';
-    const newRuntimeConfigBlock = '// __RUNTIME_CONFIG_START__\nlet configDurasi = parseInt(localStorage.getItem(\'configDurasi\') || \'' + configDurasi + '\');\nlet configJumlahSoal = parseInt(localStorage.getItem(\'configJumlahSoal\') || \'' + configJumlahSoal + '\');\nlet configAcak = localStorage.getItem(\'configAcak\') === \'' + configAcak + '\';\nlet configAcakOpsi = localStorage.getItem(\'configAcakOpsi\') === \'' + configAcakOpsi + '\';\nlet configMaxPelanggaran = parseInt(localStorage.getItem(\'configMaxPelanggaran\') || \'' + configMaxPelanggaran + '\');\n// __RUNTIME_CONFIG_END__';
+    const newRuntimeConfigBlock = '// __RUNTIME_CONFIG_START__\nlet configDurasi = parseInt(localStorage.getItem(\'configDurasi\') || \'' + configDurasi + '\');\nlet configJumlahSoal = parseInt(localStorage.getItem(\'configJumlahSoal\') || \'' + configJumlahSoal + '\');\nlet configAcak = (localStorage.getItem(\'configAcak\') || \'' + configAcak + '\') === \'true\';\nlet configAcakOpsi = (localStorage.getItem(\'configAcakOpsi\') || \'' + configAcakOpsi + '\') === \'true\';\nlet configMaxPelanggaran = parseInt(localStorage.getItem(\'configMaxPelanggaran\') || \'' + configMaxPelanggaran + '\');\n// __RUNTIME_CONFIG_END__';
     html = html.replace(/\/\/ __CONFIG_START__[\s\S]*?\/\/ __CONFIG_END__/, newConfigBlock);
     html = html.replace(/\/\/ __RUNTIME_CONFIG_START__[\s\S]*?\/\/ __RUNTIME_CONFIG_END__/, newRuntimeConfigBlock);
     html = html.replace(/const HTML_VERSION = "[^"]*";/, 'const HTML_VERSION = "' + newVersion + '";');
@@ -1039,6 +1041,7 @@ function hitungForensik() {
   const tercepat = totalDijawab > 0 ? durasiPerSoal.reduce((min, d) => d.durasi < min.durasi ? d : min, durasiPerSoal[0]) : null;
   const terlama = totalDijawab > 0 ? durasiPerSoal.reduce((max, d) => d.durasi > max.durasi ? d : max, durasiPerSoal[0]) : null;
   const mencurigakan = durasiPerSoal.filter(d => d.durasi < 3);
+  durasiPerSoal.sort((a, b) => a.displayIdx - b.displayIdx);
   return { totalWaktu, totalDijawab, totalTidakDijawab, rataRata, tercepat, terlama, durasiPerSoal, mencurigakan };
 }
 
@@ -1077,6 +1080,7 @@ function mulaiUjian() {
   if (configAcakOpsi) soalUrutan.forEach(soalIdx => { const opsiIndices = [...Array(soalAktif[soalIdx].o.length).keys()]; urutanOpsiPerSoal[soalIdx] = acakArray(opsiIndices); });
   else soalUrutan.forEach(soalIdx => { urutanOpsiPerSoal[soalIdx] = [...Array(soalAktif[soalIdx].o.length).keys()]; });
   localStorage.setItem('soalUrutan', JSON.stringify(soalUrutan)); localStorage.setItem('urutanOpsiPerSoal', JSON.stringify(urutanOpsiPerSoal));
+  const btnKumpul = document.getElementById('btnKumpul'); if (btnKumpul) btnKumpul.disabled = true;
   isFullscreenActive = true; enterFullscreen(); buatWatermark(nama, nomor, kelas); tampilkanSoal(); mulaiTimer();
 }
 
@@ -1094,6 +1098,7 @@ function tampilkanSoal() {
     });
     html += '</div>';
   });
+  const btnKumpul = document.getElementById('btnKumpul'); if (btnKumpul) btnKumpul.disabled = true;
   document.getElementById('soalContainer').innerHTML = html; updateTampilanPelanggaran(); updateProgressBar();
 }
 
@@ -1155,21 +1160,22 @@ window.onload = function() {
     durasi = configDurasi * 60; maxPelanggaranUjian = configMaxPelanggaran; isFullscreenActive = true;
     document.getElementById('menuAwal').style.display = 'none';
     soalUrutan.forEach(soalIdx => { if (!urutanOpsiPerSoal[soalIdx]) urutanOpsiPerSoal[soalIdx] = [...Array(soalAktif[soalIdx].o.length).keys()]; });
-    if (dataSiswa) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas);
+    if (dataSiswa && dataSiswa.nama) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas);
     tampilkanSoal(); mulaiTimer(); enterFullscreen();
     const elapsed = Math.floor((Date.now() - waktuMulai) / 1000);
     if (elapsed >= durasi) { document.getElementById('timer').innerText = 'WAKTU HABIS!'; document.getElementById('timer').style.background = '#16a34a'; document.getElementById('btnKumpul').disabled = false; }
   } else if (statusUjian === 'selesai') {
     const nilai = localStorage.getItem('nilai'), benar = parseInt(localStorage.getItem('benar') || 0), isAutoSubmit = localStorage.getItem('autoSubmit') === 'true';
     jumlahPelanggaran = parseInt(localStorage.getItem('jumlahPelanggaran') || '0'); pelanggaran = JSON.parse(localStorage.getItem('pelanggaran') || '[]');
-    waktuJawaban = JSON.parse(localStorage.getItem('waktuJawaban') || '{}'); soalUrutan = JSON.parse(localStorage.getItem('soalUrutan') || 'null') || [];
+    waktuJawaban = JSON.parse(localStorage.getItem('waktuJawaban') || '{}'); soalUrutan = JSON.parse(localStorage.getItem('soalUrutan') || 'null') || [...Array(soalAktif.length).keys()];
+    if (!soalUrutan.length) soalUrutan = [...Array(soalAktif.length).keys()];
     waktuMulai = parseInt(localStorage.getItem('waktuMulai') || Date.now()); maxPelanggaranUjian = configMaxPelanggaran;
     if (!dataSiswa) { document.getElementById('menuAwal').style.display = 'none'; document.getElementById('resultArea').innerHTML = '<div class="result violation-result"><h2>️ Data Tidak Ditemukan</h2><p>Hubungi guru untuk reset.</p><button class="btn-reset" style="float:none; margin-top:15px;" onclick="bukaModalReset()"> Reset (Guru)</button></div>'; document.getElementById('resultArea').style.display = 'block'; return; }
     document.getElementById('menuAwal').style.display = 'none'; tampilkanHasil(parseInt(nilai), benar, isAutoSubmit);
   }
 };
 
-window.addEventListener('resize', () => { if (statusUjian === 'berlangsung' && dataSiswa) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas); });
+window.addEventListener('resize', () => { if (statusUjian === 'berlangsung' && dataSiswa && dataSiswa.nama) buatWatermark(dataSiswa.nama, dataSiswa.nomor, dataSiswa.kelas); });
 </script>
 </body>
   </html>
