@@ -488,8 +488,9 @@
           <li>Buat Google Spreadsheet baru di Google Drive Anda.</li>
           <li>Klik menu <strong>Ekstensi &gt; Apps Script</strong>.</li>
           <li>Hapus kode lama dan tempel kode berikut:
-<pre style="background:var(--bg-primary); padding:10px; border-radius:4px; overflow-x:auto; font-size:11px; margin-top:5px; border:1px solid var(--border-color); color:var(--text-primary); -webkit-user-select:text; user-select:text;">
-function doPost(e) {
+            <div style="margin-top:5px;">
+              <button class="btn btn-secondary" onclick="salinKodeGas()" style="padding:4px 10px; font-size:12px; margin-bottom:5px;">📋 Salin Kode Apps Script</button>
+<pre id="kodeGasText" style="background:var(--bg-primary); padding:10px; border-radius:4px; overflow-x:auto; font-size:11px; border:1px solid var(--border-color); color:var(--text-primary); -webkit-user-select:text; user-select:text;">function doPost(e) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var data = JSON.parse(e.postData.contents);
@@ -512,8 +513,8 @@ function doPost(e) {
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({result: "error", error: error.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
-}
-</pre>
+}</pre>
+            </div>
           </li>
           <li>Klik <strong>Terapkan (Deploy) &gt; Penerapan baru (New deployment)</strong>.</li>
           <li>Pilih jenis: <strong>Aplikasi web (Web app)</strong>.</li>
@@ -692,6 +693,23 @@ function loadDashboardData() {
   document.getElementById('jumlahSoalSaatIni').innerText = soalAktif.length;
   document.getElementById('versionBadge').innerText = 'v' + HTML_VERSION;
   document.getElementById('currentVersionDisplay').innerText = 'v' + HTML_VERSION;
+}
+
+function salinKodeGas() {
+  const codeElem = document.getElementById('kodeGasText');
+  if (!codeElem) return;
+  const codeText = codeElem.innerText;
+  navigator.clipboard.writeText(codeText).then(() => {
+    alert('✅ Kode Apps Script berhasil disalin ke clipboard!');
+  }).catch(err => {
+    const textarea = document.createElement('textarea');
+    textarea.value = codeText;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('✅ Kode Apps Script berhasil disalin!');
+  });
 }
 
 function simpanGoogleSheet() {
@@ -1083,22 +1101,24 @@ function enterFullscreen() { const elem = document.documentElement; if (elem.req
 function exitFullscreen() { if (document.exitFullscreen) document.exitFullscreen().catch(()=>{}); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
 document.addEventListener('fullscreenchange', handleFullscreenChange); document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 function handleFullscreenChange() { const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement); if (!isFullscreen && isFullscreenActive && statusUjian === 'berlangsung') { catatPelanggaran('Keluar dari mode fullscreen'); tampilkanOverlayPelanggaran('Anda keluar dari mode fullscreen!'); setTimeout(() => { if (statusUjian === 'berlangsung') enterFullscreen(); }, 3500); } }
-document.addEventListener('copy', e => { e.preventDefault(); catatPelanggaran('Percobaan copy teks'); });
-document.addEventListener('cut', e => { e.preventDefault(); catatPelanggaran('Percobaan cut teks'); });
-document.addEventListener('paste', e => { e.preventDefault(); });
+document.addEventListener('copy', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); catatPelanggaran('Percobaan copy teks'); } });
+document.addEventListener('cut', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); catatPelanggaran('Percobaan cut teks'); } });
+document.addEventListener('paste', e => { if (statusUjian === 'berlangsung') { e.preventDefault(); } });
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && ['c','C','x','X','a','A','p','P','s','S','u','U'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
-  if (e.key === 'F12') { e.preventDefault(); catatPelanggaran('Tombol F12 (DevTools)'); return false; }
-  if (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) { e.preventDefault(); catatPelanggaran('DevTools shortcut'); return false; }
-  if (e.key === 'PrintScreen' || e.key === 'Print') { e.preventDefault(); catatPelanggaran('Tombol PrintScreen'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); navigator.clipboard.writeText('').catch(()=>{}); return false; }
-  if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); catatPelanggaran('Windows+Shift+S'); tampilkanOverlayPelanggaran('Snipping Tool terdeteksi!'); return false; }
-  if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) { e.preventDefault(); catatPelanggaran('Screenshot Mac'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); return false; }
-  if (e.shiftKey && e.key === 'F10') { e.preventDefault(); catatPelanggaran('Shift+F10 (Context Menu)'); return false; }
-  if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); catatPelanggaran('Console shortcut'); return false; }
-  if (e.key === 'F1') { e.preventDefault(); return false; }
-  if (statusUjian === 'berlangsung' && (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R')))) { e.preventDefault(); catatPelanggaran('Mencoba refresh halaman'); return false; }
-  if (e.ctrlKey && ['n','N','t','T','w','W'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
-  if (e.key === 'Meta' || e.key === 'OS' || e.key === 'Super' || e.key === 'Win' || e.key === 'ContextMenu') { e.preventDefault(); return false; }
+  if (statusUjian === 'berlangsung') {
+    if (e.ctrlKey && ['c','C','x','X','a','A','p','P','s','S','u','U'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
+    if (e.key === 'F12') { e.preventDefault(); catatPelanggaran('Tombol F12 (DevTools)'); return false; }
+    if (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) { e.preventDefault(); catatPelanggaran('DevTools shortcut'); return false; }
+    if (e.key === 'PrintScreen' || e.key === 'Print') { e.preventDefault(); catatPelanggaran('Tombol PrintScreen'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); navigator.clipboard.writeText('').catch(()=>{}); return false; }
+    if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); catatPelanggaran('Windows+Shift+S'); tampilkanOverlayPelanggaran('Snipping Tool terdeteksi!'); return false; }
+    if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) { e.preventDefault(); catatPelanggaran('Screenshot Mac'); tampilkanOverlayPelanggaran('Screenshot terdeteksi!'); return false; }
+    if (e.shiftKey && e.key === 'F10') { e.preventDefault(); catatPelanggaran('Shift+F10 (Context Menu)'); return false; }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); catatPelanggaran('Console shortcut'); return false; }
+    if (e.key === 'F1') { e.preventDefault(); return false; }
+    if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) { e.preventDefault(); catatPelanggaran('Mencoba refresh halaman'); return false; }
+    if (e.ctrlKey && ['n','N','t','T','w','W'].includes(e.key)) { e.preventDefault(); catatPelanggaran('Ctrl+' + e.key.toUpperCase()); return false; }
+    if (e.key === 'Meta' || e.key === 'OS' || e.key === 'Super' || e.key === 'Win' || e.key === 'ContextMenu') { e.preventDefault(); return false; }
+  }
 });
 window.addEventListener('blur', () => { if (statusUjian === 'berlangsung') { catatPelanggaran('Window kehilangan fokus'); tampilkanOverlayPelanggaran('Window kehilangan fokus!'); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && statusUjian === 'berlangsung') { catatPelanggaran('Pindah tab / minimize'); tampilkanOverlayPelanggaran('Pindah tab terdeteksi!'); } });
