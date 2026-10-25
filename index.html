@@ -491,7 +491,9 @@
             <div style="margin-top:5px;">
               <button class="btn btn-secondary" onclick="salinKodeGas()" style="padding:4px 10px; font-size:12px; margin-bottom:5px;">📋 Salin Kode Apps Script</button>
 <pre id="kodeGasText" style="background:var(--bg-primary); padding:10px; border-radius:4px; overflow-x:auto; font-size:11px; border:1px solid var(--border-color); color:var(--text-primary); -webkit-user-select:text; user-select:text;">function doPost(e) {
+  var lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000); // Tunggu antrean maksimal 10 detik agar tidak ada bentrok antar HP
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var data = JSON.parse(e.postData.contents);
     if (sheet.getLastRow() == 0) {
@@ -509,9 +511,12 @@
       data.autoSubmit ? "Ya" : "Tidak",
       data.waktuSelesai || ""
     ]);
+    SpreadsheetApp.flush();
     return ContentService.createTextOutput(JSON.stringify({result: "success"})).setMimeType(ContentService.MimeType.JSON);
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({result: "error", error: error.toString()})).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
   }
 }</pre>
             </div>
@@ -1248,15 +1253,35 @@ function autoSubmit() { submitUjian(true); }
 async function kirimKeGoogleSheet(payload, customUrl) {
   const targetUrl = customUrl || configGoogleSheetUrl;
   if (!targetUrl) return false;
+  const jsonString = JSON.stringify(payload);
+
+  // Jika sendBeacon didukung di browser mobile dan bukan tes customUrl, gunakan sendBeacon sebagai cara paling cepat dan ringan
+  if (!customUrl && navigator.sendBeacon) {
+    try {
+      const blob = new Blob([jsonString], { type: 'text/plain;charset=UTF-8' });
+      const sent = navigator.sendBeacon(targetUrl, blob);
+      if (sent) return true;
+    } catch (e) {
+      console.warn('sendBeacon gagal, beralih ke fetch:', e);
+    }
+  }
+
+  // Fallback menggunakan fetch dengan timeout 8 detik agar tidak tertahan lama di HP
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     await fetch(targetUrl, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: jsonString,
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     return true;
   } catch (err) {
+    clearTimeout(timeoutId);
     console.error('Gagal mengirim ke Google Sheet:', err);
     return false;
   }
