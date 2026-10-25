@@ -1084,7 +1084,7 @@ function exportToExcel() {
 
 function resetDataSiswa() {
   if (!confirm('Yakin ingin menghapus semua data siswa?')) return;
-  ['statusUjian','waktuMulai','jawaban','dataSiswa','pelanggaran','jumlahPelanggaran','nilai','benar','autoSubmit','waktuSelesai','soalUrutan','urutanOpsiPerSoal','waktuJawaban'].forEach(k => localStorage.removeItem(k));
+  ['statusUjian','waktuMulai','jawaban','dataSiswa','pelanggaran','jumlahPelanggaran','nilai','benar','autoSubmit','waktuSelesai','soalUrutan','urutanOpsiPerSoal','waktuJawaban','pendingSheetPayload'].forEach(k => localStorage.removeItem(k));
   document.getElementById('statusResetSiswa').innerHTML = '<div class="alert-success">✅ Semua data siswa berhasil dihapus</div>';
   setTimeout(() => { document.getElementById('statusResetSiswa').innerHTML = ''; }, 3000);
 }
@@ -1250,23 +1250,77 @@ function mulaiTimer() {
 function kumpulkan() { const elapsed = Math.floor((Date.now() - waktuMulai) / 1000); if (elapsed < durasi) { alert('Anda belum dapat mengumpulkan sebelum waktu habis!\n\nSisa waktu: ' + Math.ceil((durasi - elapsed)/60) + ' menit lagi.'); return; } submitUjian(false); }
 function autoSubmit() { submitUjian(true); }
 
+async function prosesAntreanSheet() {
+  const pendingDataStr = localStorage.getItem('pendingSheetPayload');
+  if (!pendingDataStr || !configGoogleSheetUrl) return;
+
+  const sheetStatusElem = document.getElementById('sheetSendingStatus');
+  if (sheetStatusElem) sheetStatusElem.innerHTML = '<div class="alert-info">⏳ Menghubungkan & mengirim nilai tertunda ke Google Spreadsheet...</div>';
+
+  try {
+    const payload = JSON.parse(pendingDataStr);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    await fetch(configGoogleSheetUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    localStorage.removeItem('pendingSheetPayload');
+    if (sheetStatusElem) {
+      sheetStatusElem.innerHTML = '<div class="alert-success">✅ Hasil nilai yang tertunda berhasil terkirim ke Google Spreadsheet!</div>';
+    }
+  } catch (err) {
+    console.warn('Gagal memproses antrean pengiriman sheet:', err);
+    if (sheetStatusElem) {
+      sheetStatusElem.innerHTML = '<div class="alert-info">📡 Pengiriman tertunda (koneksi offline/tidak stabil). Nilai tersimpan di HP &amp; akan otomatis terkirim begitu terkoneksi Internet. <button onclick="prosesAntreanSheet()" class="btn btn-warning" style="padding:2px 8px; font-size:11px; margin-left:5px;">🔄 Coba Lagi</button></div>';
+    }
+  }
+}
+
 async function kirimKeGoogleSheet(payload, customUrl) {
   const targetUrl = customUrl || configGoogleSheetUrl;
   if (!targetUrl) return false;
   const jsonString = JSON.stringify(payload);
+  const sheetStatusElem = document.getElementById('sheetSendingStatus');
 
-  // Jika sendBeacon didukung di browser mobile dan bukan tes customUrl, gunakan sendBeacon sebagai cara paling cepat dan ringan
-  if (!customUrl && navigator.sendBeacon) {
+  if (customUrl) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     try {
-      const blob = new Blob([jsonString], { type: 'text/plain;charset=UTF-8' });
-      const sent = navigator.sendBeacon(targetUrl, blob);
-      if (sent) return true;
-    } catch (e) {
-      console.warn('sendBeacon gagal, beralih ke fetch:', e);
+      await fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: jsonString,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return true;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      return false;
     }
   }
 
-  // Fallback menggunakan fetch dengan timeout 8 detik agar tidak tertahan lama di HP
+  localStorage.setItem('pendingSheetPayload', jsonString);
+
+  if (!navigator.onLine) {
+    if (sheetStatusElem) {
+      sheetStatusElem.innerHTML = '<div class="alert-info">📡 HP dalam kondisi Offline. Nilai tersimpan aman di HP &amp; akan otomatis terkirim ke Google Spreadsheet saat HP terkoneksi Internet.</div>';
+    }
+    return false;
+  }
+
+  if (sheetStatusElem) {
+    sheetStatusElem.innerHTML = '<div class="alert-info">⏳ Mengirim hasil nilai ke Google Spreadsheet...</div>';
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 
@@ -1279,10 +1333,17 @@ async function kirimKeGoogleSheet(payload, customUrl) {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
+    localStorage.removeItem('pendingSheetPayload');
+    if (sheetStatusElem) {
+      sheetStatusElem.innerHTML = '<div class="alert-success">✅ Hasil nilai berhasil terkirim ke Google Spreadsheet.</div>';
+    }
     return true;
   } catch (err) {
     clearTimeout(timeoutId);
     console.error('Gagal mengirim ke Google Sheet:', err);
+    if (sheetStatusElem) {
+      sheetStatusElem.innerHTML = '<div class="alert-info">📡 Pengiriman tertunda (koneksi terputus). Nilai tersimpan di HP &amp; akan otomatis terkirim begitu terkoneksi Internet. <button onclick="prosesAntreanSheet()" class="btn btn-warning" style="padding:2px 8px; font-size:11px; margin-left:5px;">🔄 Coba Lagi</button></div>';
+    }
     return false;
   }
 }
@@ -1298,8 +1359,6 @@ function submitUjian(isAutoSubmit) {
   tampilkanHasil(nilai, benar, isAutoSubmit);
 
   if (configGoogleSheetUrl && dataSiswa) {
-    const sheetStatusElem = document.getElementById('sheetSendingStatus');
-    if (sheetStatusElem) sheetStatusElem.innerHTML = '<div class="alert-info">⏳ Mengirim hasil nilai ke Google Spreadsheet...</div>';
     const payload = {
       nama: dataSiswa.nama,
       nomor: dataSiswa.nomor,
@@ -1311,12 +1370,7 @@ function submitUjian(isAutoSubmit) {
       autoSubmit: isAutoSubmit,
       waktuSelesai: waktuSelesaiStr
     };
-    kirimKeGoogleSheet(payload).then(success => {
-      if (sheetStatusElem) {
-        if (success) sheetStatusElem.innerHTML = '<div class="alert-success">✅ Hasil nilai berhasil terkirim ke Google Spreadsheet.</div>';
-        else sheetStatusElem.innerHTML = '<div class="alert-error">⚠️ Gagal mengirim hasil nilai ke Google Spreadsheet.</div>';
-      }
-    });
+    kirimKeGoogleSheet(payload);
   }
 }
 
@@ -1334,8 +1388,19 @@ function tutupModal(id) { document.getElementById(id).style.display = 'none'; }
 function bukaModalReset() { document.getElementById('resetModal').style.display = 'flex'; document.getElementById('passwordGuru').value = ''; }
 function konfirmasiReset() {
   const pwd = document.getElementById('passwordGuru').value;
-  if (pwd === PASSWORD_GURU) { if (confirm('Yakin ingin mereset ujian siswa ini?')) { ['statusUjian','waktuMulai','jawaban','dataSiswa','pelanggaran','jumlahPelanggaran','nilai','benar','autoSubmit','waktuSelesai','soalUrutan','urutanOpsiPerSoal','waktuJawaban'].forEach(k => localStorage.removeItem(k)); isFullscreenActive = false; exitFullscreen(); hapusWatermark(); alert('Ujian berhasil direset!'); location.reload(); } } else { alert('Password salah!'); }
+  if (pwd === PASSWORD_GURU) { if (confirm('Yakin ingin mereset ujian siswa ini?')) { ['statusUjian','waktuMulai','jawaban','dataSiswa','pelanggaran','jumlahPelanggaran','nilai','benar','autoSubmit','waktuSelesai','soalUrutan','urutanOpsiPerSoal','waktuJawaban','pendingSheetPayload'].forEach(k => localStorage.removeItem(k)); isFullscreenActive = false; exitFullscreen(); hapusWatermark(); alert('Ujian berhasil direset!'); location.reload(); } } else { alert('Password salah!'); }
 }
+
+window.addEventListener('online', () => {
+  console.log('Koneksi terdeteksi (online). Memproses antrean pengiriman nilai...');
+  prosesAntreanSheet();
+});
+
+setInterval(() => {
+  if (localStorage.getItem('pendingSheetPayload') && navigator.onLine) {
+    prosesAntreanSheet();
+  }
+}, 10000);
 
 window.onload = function() {
   if (localStorage.getItem('darkMode') === 'true') { document.body.classList.add('dark-mode'); document.querySelector('.dark-mode-toggle').innerText = '☀️'; }
@@ -1359,6 +1424,9 @@ window.onload = function() {
     waktuMulai = parseInt(localStorage.getItem('waktuMulai') || Date.now()); maxPelanggaranUjian = configMaxPelanggaran;
     if (!dataSiswa) { document.getElementById('menuAwal').style.display = 'none'; document.getElementById('resultArea').innerHTML = '<div class="result violation-result"><h2>️ Data Tidak Ditemukan</h2><p>Hubungi guru untuk reset.</p><button class="btn-reset" style="float:none; margin-top:15px;" onclick="bukaModalReset()"> Reset (Guru)</button></div>'; document.getElementById('resultArea').style.display = 'block'; return; }
     document.getElementById('menuAwal').style.display = 'none'; tampilkanHasil(parseInt(nilai), benar, isAutoSubmit);
+    if (localStorage.getItem('pendingSheetPayload')) {
+      prosesAntreanSheet();
+    }
   }
 };
 
