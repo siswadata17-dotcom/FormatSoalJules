@@ -729,7 +729,7 @@ function simpanGoogleSheet() {
   const url = document.getElementById('inputGoogleSheet').value.trim();
   configGoogleSheetUrl = url;
   localStorage.setItem('configGoogleSheetUrl', configGoogleSheetUrl);
-  document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-success">✅ URL Google Apps Script berhasil disimpan!</div>';
+  document.getElementById('statusGoogleSheet').innerHTML = '<div class="alert-success">✅ URL Google Apps Script berhasil disimpan di perangkat ini!<br>📌 <strong>PENTING:</strong> Klik tombol <strong>"💾 Download HTML Terbaru"</strong> di bawah lalu ganti file di GitHub Pages/hosting Anda agar URL otomatis terpasang di seluruh HP/perangkat siswa tanpa perlu copy-paste lagi.</div>';
 }
 
 function resetGoogleSheet() {
